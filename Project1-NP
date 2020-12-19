@@ -1,0 +1,508 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Bad key \"text.kerning_factor\" on line 4 in\n",
+      "C:\\Users\\Khemero\\anaconda3\\envs\\pyvizenv\\lib\\site-packages\\matplotlib\\mpl-data\\stylelib\\_classic_test_patch.mplstyle.\n",
+      "You probably need to get an updated matplotlibrc file from\n",
+      "http://github.com/matplotlib/matplotlib/blob/master/matplotlibrc.template\n",
+      "or from the matplotlib source distribution\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Initial imports\n",
+    "import os # Miscellaneous operating system interfaces (os.getenv)\n",
+    "import requests # requests.get\n",
+    "import pandas as pd\n",
+    "from dotenv import load_dotenv #Reads the key-value pair from .env file and adds them to environment variable.\n",
+    "from pathlib import Path\n",
+    "import json # lightweight data interchange format \n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "%matplotlib inline\n",
+    "import FundamentalAnalysis as fa\n",
+    "import alpaca_trade_api as tradeapi"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Load .env enviroment variables\n",
+    "load_dotenv()\n",
+    "from pathlib import Path\n",
+    "env_path = Path('C:/Users/Khemero/.env')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Set FA API key\n",
+    "api_key = os.getenv(\"FA\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Set Alpaca API key and secret\n",
+    "alpaca_api_key = os.getenv(\"ALPACA_API_KEY\")\n",
+    "alpaca_secret_key = os.getenv(\"ALPACA_SECRET_KEY\")\n",
+    "\n",
+    "# Create the Alpaca API object\n",
+    "alpaca = tradeapi.REST(\n",
+    "    alpaca_api_key,\n",
+    "    alpaca_secret_key,\n",
+    "    api_version=\"v2\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Set the file path\n",
+    "sp_data = Path(\"Resources/sp.csv\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Read whale returns csv\n",
+    "# Read the CSVs and set the `date` column as a datetime index to the DataFrame\n",
+    "sp_df = pd.read_csv(sp_data, index_col=\"Date\", infer_datetime_format=True, parse_dates=True)\n",
+    "sp_df.sort_index(ascending = True, inplace = True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Drop nulls\n",
+    "sp_df = sp_df.dropna()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# master_list = []\n",
+    "# for i in target_items:\n",
+    "#         data_dict = {}\n",
+    "#         data_dict['marketplace'] = 'ebay'\n",
+    "#         data_dict['date_retrieved'] = date.today()\n",
+    "#         data_dict['link'] = i.get('a',{'href'})\n",
+    "#         master_list.append(data_dict)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Format current date as ISO format\n",
+    "today = pd.Timestamp(\"2020-07-31\", tz=\"America/New_York\").isoformat() \n",
+    "start = pd.Timestamp(\"2019-01-01\", tz=\"America/New_York\").isoformat() #1/1/2019?\n",
+    "end = pd.Timestamp(\"2020-12-31\", tz=\"America/New_York\").isoformat() #31/12/2019?\n",
+    "\n",
+    "# Set the tickers\n",
+    "tickers = [\"TSLA\", \"NIO\", \"AAPL\", \"PFE\", \"MSFT\", \"MRNA\", \"ZM\", \"AMZN\", \"NNDM\", \"CRM\", \"NVDA\"]\n",
+    "dict = {'stock':'', 'segment':''}  \n",
+    "marketcaps = {}\n",
+    "segments = {}\n",
+    "for stock in tickers:\n",
+    "    profile = fa.profile(stock, api_key) \n",
+    "    try: \n",
+    "        marketcaps[stock] = int(profile.iloc[22])\n",
+    "        segment = str(profile.iloc[26])[5:]\n",
+    "        segments[stock] = segment[:-28]\n",
+    "    except: continue\n",
+    "    \n",
+    "\n",
+    "## Create the shares DataFrame with `tickers` as index\n",
+    "#df_shares = pd.DataFrame(shares_data, index=tickers)\n",
+    "\n",
+    "# Set timeframe to '1D' for Alpaca API\n",
+    "timeframe = \"1D\"\n",
+    "\n",
+    "# Get current closing prices for SPY and AGG\n",
+    "df_portfolio = alpaca.get_barset(\n",
+    "    tickers,\n",
+    "    timeframe,\n",
+    "    start = today,\n",
+    "    end = today\n",
+    ").df"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "marketcaps_df = pd.DataFrame(marketcaps.items(), columns=['stock', 'marketcap'])\n",
+    "segments_df = pd.DataFrame(segments.items(), columns=['stock', 'marketcap'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>stock</th>\n",
+       "      <th>marketcap</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>TSLA</td>\n",
+       "      <td>658791200000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>NIO</td>\n",
+       "      <td>72832279000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>AAPL</td>\n",
+       "      <td>2153362880000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>PFE</td>\n",
+       "      <td>209440506000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>MSFT</td>\n",
+       "      <td>1652649750000</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "  stock      marketcap\n",
+       "0  TSLA   658791200000\n",
+       "1   NIO    72832279000\n",
+       "2  AAPL  2153362880000\n",
+       "3   PFE   209440506000\n",
+       "4  MSFT  1652649750000"
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "marketcaps_df.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>stock</th>\n",
+       "      <th>marketcap</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>TSLA</td>\n",
+       "      <td>Consumer Cyclical</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>NIO</td>\n",
+       "      <td>Consumer Cyclical</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>AAPL</td>\n",
+       "      <td>Technology</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>PFE</td>\n",
+       "      <td>Healthcare</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>MSFT</td>\n",
+       "      <td>Technology</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "  stock          marketcap\n",
+       "0  TSLA  Consumer Cyclical\n",
+       "1   NIO  Consumer Cyclical\n",
+       "2  AAPL         Technology\n",
+       "3   PFE         Healthcare\n",
+       "4  MSFT         Technology"
+      ]
+     },
+     "execution_count": 12,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "segments_df.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Open</th>\n",
+       "      <th>High</th>\n",
+       "      <th>Low</th>\n",
+       "      <th>Close</th>\n",
+       "      <th>Volume</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>Date</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>2019-01-02 16:00:00</th>\n",
+       "      <td>2476.96</td>\n",
+       "      <td>2519.49</td>\n",
+       "      <td>2467.47</td>\n",
+       "      <td>2510.03</td>\n",
+       "      <td>2233765369</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2019-01-03 16:00:00</th>\n",
+       "      <td>2491.92</td>\n",
+       "      <td>2493.14</td>\n",
+       "      <td>2443.96</td>\n",
+       "      <td>2447.89</td>\n",
+       "      <td>2754752741</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2019-01-04 16:00:00</th>\n",
+       "      <td>2474.33</td>\n",
+       "      <td>2538.07</td>\n",
+       "      <td>2474.33</td>\n",
+       "      <td>2531.94</td>\n",
+       "      <td>2661709794</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2019-01-07 16:00:00</th>\n",
+       "      <td>2535.61</td>\n",
+       "      <td>2566.16</td>\n",
+       "      <td>2524.56</td>\n",
+       "      <td>2549.69</td>\n",
+       "      <td>2526552370</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2019-01-08 16:00:00</th>\n",
+       "      <td>2568.11</td>\n",
+       "      <td>2579.82</td>\n",
+       "      <td>2547.56</td>\n",
+       "      <td>2574.41</td>\n",
+       "      <td>2458286256</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                        Open     High      Low    Close      Volume\n",
+       "Date                                                               \n",
+       "2019-01-02 16:00:00  2476.96  2519.49  2467.47  2510.03  2233765369\n",
+       "2019-01-03 16:00:00  2491.92  2493.14  2443.96  2447.89  2754752741\n",
+       "2019-01-04 16:00:00  2474.33  2538.07  2474.33  2531.94  2661709794\n",
+       "2019-01-07 16:00:00  2535.61  2566.16  2524.56  2549.69  2526552370\n",
+       "2019-01-08 16:00:00  2568.11  2579.82  2547.56  2574.41  2458286256"
+      ]
+     },
+     "execution_count": 13,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "sp_df.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# # Collect general company information\n",
+    "# profile = fa.profile(ticker, api_key)\n",
+    "\n",
+    "# # Collect recent company quotes\n",
+    "# quotes = fa.quote(ticker, api_key)\n",
+    "\n",
+    "# # Collect market cap and enterprise value\n",
+    "# entreprise_value = fa.enterprise(ticker, api_key)\n",
+    "\n",
+    "# # Show recommendations of Analysts\n",
+    "# ratings = fa.rating(ticker, api_key)\n",
+    "\n",
+    "# # Obtain DCFs over time\n",
+    "# dcf_annually = fa.discounted_cash_flow(ticker, api_key, period=\"annual\")\n",
+    "# dcf_quarterly = fa.discounted_cash_flow(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Collect the Balance Sheet statements\n",
+    "# balance_sheet_annually = fa.balance_sheet_statement(ticker, api_key, period=\"annual\")\n",
+    "# balance_sheet_quarterly = fa.balance_sheet_statement(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Collect the Income Statements\n",
+    "# income_statement_annually = fa.income_statement(ticker, api_key, period=\"annual\")\n",
+    "# income_statement_quarterly = fa.income_statement(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Collect the Cash Flow Statements\n",
+    "# cash_flow_statement_annually = fa.cash_flow_statement(ticker, api_key, period=\"annual\")\n",
+    "# cash_flow_statement_quarterly = fa.cash_flow_statement(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Show Key Metrics\n",
+    "# key_metrics_annually = fa.key_metrics(ticker, api_key, period=\"annual\")\n",
+    "# key_metrics_quarterly = fa.key_metrics(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Show a large set of in-depth ratios\n",
+    "# financial_ratios_annually = fa.financial_ratios(ticker, api_key, period=\"annual\")\n",
+    "# financial_ratios_quarterly = fa.financial_ratios(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Show the growth of the company\n",
+    "# growth_annually = fa.financial_statement_growth(ticker, api_key, period=\"annual\")\n",
+    "# growth_quarterly = fa.financial_statement_growth(ticker, api_key, period=\"quarter\")\n",
+    "\n",
+    "# # Download general stock data\n",
+    "# stock_data = fa.stock_data(ticker, period=\"ytd\", interval=\"1d\")\n",
+    "\n",
+    "# # Download detailed stock data\n",
+    "# stock_data_detailed = fa.stock_data_detailed(ticker, api_key, begin=\"2000-01-01\", end=\"2020-01-01\")\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.9"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
